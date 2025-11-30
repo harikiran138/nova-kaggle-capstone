@@ -1,0 +1,134 @@
+version: '3.8'
+
+services:
+  # --- Core Infrastructure ---
+  postgres:
+    image: postgres:15-alpine
+    container_name: nova_postgres
+    environment:
+      POSTGRES_USER: nova_user
+      POSTGRES_PASSWORD: nova_password
+      POSTGRES_DB: nova_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - nova_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nova_user -d nova_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: nova_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - nova_network
+
+  minio:
+    image: minio/minio
+    container_name: nova_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio_admin
+      MINIO_ROOT_PASSWORD: minio_password
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - nova_network
+
+  # --- AI Infrastructure ---
+  # Milvus Standalone (simplified for MVP)
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd_data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls=http://0.0.0.0:2379 --data-dir /etcd
+    networks:
+      - nova_network
+
+  milvus:
+    image: milvusdb/milvus:v2.3.3
+    container_name: nova_milvus
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MINIO_ACCESS_KEY_ID: minio_admin
+      MINIO_SECRET_ACCESS_KEY: minio_password
+    volumes:
+      - milvus_data:/var/lib/milvus
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - "etcd"
+      - "minio"
+    networks:
+      - nova_network
+
+  # --- Application ---
+  backend:
+    build: ./backend
+    container_name: nova_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://nova_user:nova_password@postgres:5432/nova_db
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minio_admin
+      MINIO_SECRET_KEY: minio_password
+      MILVUS_HOST: milvus
+      MILVUS_PORT: 19530
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      milvus:
+        condition: service_started
+    networks:
+      - nova_network
+
+  # Frontend (Dev mode)
+  frontend:
+    image: node:18-alpine
+    container_name: nova_frontend
+    working_dir: /app
+    # We will mount the frontend code and run dev server
+    # This assumes 'npm install' is run locally or via a script first, 
+    # but for docker-compose up to work out of box we might need a Dockerfile.
+    # For now, let's use a simple command that keeps it alive or runs dev if node_modules exists.
+    command: sh -c "npm install && npm run dev -- --host"
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    networks:
+      - nova_network
+
+volumes:
+  postgres_data:
+  minio_data:
+  etcd_data:
+  milvus_data:
+
+networks:
+  nova_network:
+    driver: bridge
