@@ -1,0 +1,19 @@
+Nova System Documentation
+=========================
+
+Overview
+--------
+Nova is a multi-agent autonomous system designed for Kaggle environments.
+It operates deterministically and does not require internet access.
+
+Release History
+---------------
+- Version 1.0: Released on January 15, 2024.
+- Version 2.0: Released on November 30, 2025.
+
+Components
+----------
+1. Supervisor: Manages task delegation.
+2. Coder: Handles software generation.
+3. Researcher: Retrieves information.
+4. Fixer: Repairs broken code.

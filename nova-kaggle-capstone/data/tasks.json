@@ -1,0 +1,23 @@
+[
+    {
+        "id": "task_001",
+        "type": "code",
+        "description": "Write a Python function named 'factorial' that calculates the factorial of a non-negative integer n. The function should return the result.",
+        "constraints": ["Must handle n=0", "Must be recursive or iterative"],
+        "verification": "assert factorial(5) == 120"
+    },
+    {
+        "id": "task_002",
+        "type": "research",
+        "description": "Find the release date of the Nova system from the documentation.",
+        "constraints": ["Use provided docs.txt"],
+        "verification": "contains '2025'"
+    },
+    {
+        "id": "task_003",
+        "type": "fix",
+        "description": "Fix the syntax error in 'buggy_code.py' where the print statement is missing parentheses.",
+        "constraints": ["Modify the file in place", "Ensure it runs without syntax errors"],
+        "verification": "run buggy_code.py"
+    }
+]
