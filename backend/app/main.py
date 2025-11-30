@@ -24,3 +24,32 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# Agent Integration
+from app.agents.supervisor import Supervisor
+from app.agents.coder import Coder
+from app.agents.researcher import Researcher
+from app.agents.fixer import Fixer
+from pydantic import BaseModel
+
+class TaskRequest(BaseModel):
+    task: str
+
+@app.post("/api/run-task")
+async def run_task(request: TaskRequest):
+    supervisor = Supervisor()
+    agent_type = supervisor.route_task(request.task)
+    
+    response = {"agent": agent_type, "status": "completed", "output": ""}
+    
+    if agent_type == "Coder":
+        agent = Coder()
+        response["output"] = agent.execute(request.task)
+    elif agent_type == "Fixer":
+        agent = Fixer()
+        response["output"] = agent.execute(request.task)
+    else: # Default to Researcher
+        agent = Researcher()
+        response["output"] = agent.execute(request.task)
+        
+    return response
